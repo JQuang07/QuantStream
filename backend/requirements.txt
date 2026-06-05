@@ -1,0 +1,32 @@
+# QuantStream Dashboard — Backend dependencies
+# Render free tier: install this from the repo root.
+# Tested Python: 3.11.0
+
+# ── Web framework ─────────────────────────────────────────────
+fastapi==0.136.3
+uvicorn[standard]==0.48.0
+python-multipart==0.0.29
+
+# ── Request validation ─────────────────────────────────────────
+pydantic==2.13.4
+
+# ── HTTP client ────────────────────────────────────────────────
+httpx==0.28.1
+
+# ── Market data ────────────────────────────────────────────────
+yfinance==1.4.1
+
+# ── Quantitative analytics ─────────────────────────────────────
+pandas==3.0.2
+numpy==2.4.4
+scipy==1.17.1
+
+# ── HMM regime detection ───────────────────────────────────────
+hmmlearn==0.3.3
+scikit-learn==1.8.0
+
+# ── LLM ────────────────────────────────────────────────────────
+google-genai==2.7.0
+
+# ── Vector database ────────────────────────────────────────────
+qdrant-client==1.18.0
