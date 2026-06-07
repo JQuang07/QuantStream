@@ -612,6 +612,10 @@ def render_analytics_section(
         for i, sym in enumerate(preset_tickers):
             if cols[i].button(sym, key=f"qp_{source_label}_{sym}", use_container_width=True):
                 st.session_state[ticker_key] = sym
+                # Also update the text input's own widget key so the box
+                # reflects the new symbol immediately on the next rerun.
+                st.session_state[f"ticker_input_{source_label}"] = sym
+                st.session_state[f"run_query_{source_label}"] = True
 
     if preset_groups:
         for category, syms in preset_groups.items():
@@ -621,6 +625,8 @@ def render_analytics_section(
                     if gc[i].button(sym, key=f"qpg_{source_label}_{category}_{sym}",
                                     use_container_width=True):
                         st.session_state[ticker_key] = sym
+                        st.session_state[f"ticker_input_{source_label}"] = sym
+                        st.session_state[f"run_query_{source_label}"] = True
 
     # ── Ticker + period input row ──────────────────────────────────────────
     st.markdown("---")
@@ -653,9 +659,13 @@ def render_analytics_section(
         )
 
     # ── Fetch analytics on button click ───────────────────────────────────
-    ticker_changed = ticker_input != st.session_state[ticker_key]
-    period_changed = period_input != st.session_state.get(period_key)
-    should_fetch   = analyze_clicked or (ticker_changed and ticker_input) or period_changed
+    # Consume the flag set by preset buttons (one-shot: clear it immediately
+    # so a subsequent rerun doesn't trigger a second fetch).
+    run_query = st.session_state.get(f"run_query_{source_label}", False)
+    if run_query:
+        st.session_state[f"run_query_{source_label}"] = False
+
+    should_fetch = analyze_clicked or run_query
 
     if should_fetch and ticker_input:
         st.session_state[ticker_key] = ticker_input
