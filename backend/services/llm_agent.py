@@ -658,11 +658,14 @@ You operate as a seasoned quant analyst and portfolio strategist. You reason rig
                 len(rag_context),
             )
 
-            async for chunk in client.aio.models.generate_content_stream(
+            # generate_content_stream is a coroutine that must be awaited
+            # first; the awaited result is the async iterable of chunks.
+            stream = await client.aio.models.generate_content_stream(
                 model=_MODEL_NAME,
                 contents=contents,
                 config=gen_config,
-            ):
+            )
+            async for chunk in stream:
                 try:
                     token: str = chunk.text  # raises ValueError if blocked
                     if token:
