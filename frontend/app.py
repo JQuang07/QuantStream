@@ -927,11 +927,14 @@ with st.sidebar:
     )
 
     # ── Backend connectivity badge ──────────────────────────────────────────
-    # Cache the health check in session state; re-probe only on new session.
-    if "backend_status" not in st.session_state:
+    # Re-probe whenever the last known status is not "ok" so the indicator
+    # recovers automatically after a cold-start wake-up.  When healthy, the
+    # cached result is reused to avoid a network call on every rerun.
+    _last_status = st.session_state.get("backend_status", {}).get("status", "unknown")
+    if _last_status != "ok":
         st.session_state["backend_status"] = api_client.health_check()
 
-    _status = st.session_state["backend_status"]
+    _status  = st.session_state["backend_status"]
     _s_label = _status.get("status", "unknown")
     _s_color = {"ok": "#2ECC71", "degraded": "#F39C12"}.get(_s_label, "#E74C3C")
     st.markdown(
