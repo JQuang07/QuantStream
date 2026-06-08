@@ -1036,7 +1036,23 @@ with st.sidebar:
                 full_response = st.write_stream(token_gen)
 
             except StreamError as exc:
-                st.error(f"⚠️ **AI Error:** {exc}")
+                err_str = str(exc)
+                # 429 / quota errors come through as StreamError because the
+                # Gemini call fails after the SSE connection is already open.
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "quota" in err_str.lower():
+                    # Extract the retry delay from the error message if present
+                    import re as _re
+                    delay_match = _re.search(r"retry in (\d+)", err_str)
+                    delay_hint  = f" ({delay_match.group(1)}s)" if delay_match else ""
+                    st.warning(
+                        f"⏳ **Gemini rate limit reached{delay_hint}.**\n\n"
+                        "The free tier allows **15 requests per minute**. "
+                        "Wait about 30 seconds and ask again.\n\n"
+                        "If this happens repeatedly, check your quota at "
+                        "[ai.dev/rate-limit](https://ai.dev/rate-limit)."
+                    )
+                else:
+                    st.error(f"⚠️ **AI Error:** {exc}")
 
             except BackendError as exc:
                 if exc.status_code == 503:
