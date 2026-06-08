@@ -3,7 +3,7 @@ QuantStream Dashboard — LLM Strategy Agent
 ==========================================
 backend/services/llm_agent.py
 
-Integrates Google Gemini 2.0 Flash via the ``google-genai`` SDK (v2+) to
+Integrates Google Gemini 2.5 Flash via the ``google-genai`` SDK (v2+) to
 provide a streaming AI quantitative strategy assistant grounded in the live
 dashboard state.
 
@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-_MODEL_NAME: str          = "gemini-2.0-flash"
+_MODEL_NAME: str          = "gemini-2.5-flash"
 _EMBEDDING_MODEL: str     = "text-embedding-004"
 _DEFAULT_TEMPERATURE: float = 0.65
 _DEFAULT_MAX_TOKENS: int   = 2048
@@ -154,7 +154,7 @@ class ConversationTurn(TypedDict):
 
 class GeminiAgent:
     """
-    Stateless AI strategy assistant backed by Google Gemini 1.5 Flash.
+    Stateless AI strategy assistant backed by Google Gemini 2.5 Flash.
 
     The agent is designed to be instantiated once (see ``get_llm_agent()``)
     and called concurrently from multiple FastAPI requests.  It holds *no*
@@ -648,6 +648,7 @@ You operate as a seasoned quant analyst and portfolio strategist. You reason rig
 
         # ------ 6. Stream the response token by token -----------------------
         full_response_parts: list[str] = []
+        _MAX_LLM_RETRIES = 2
 
         try:
             logger.debug(
@@ -658,23 +659,50 @@ You operate as a seasoned quant analyst and portfolio strategist. You reason rig
                 len(rag_context),
             )
 
-            # generate_content_stream is a coroutine that must be awaited
-            # first; the awaited result is the async iterable of chunks.
-            stream = await client.aio.models.generate_content_stream(
-                model=_MODEL_NAME,
-                contents=contents,
-                config=gen_config,
-            )
-            async for chunk in stream:
+            for _attempt in range(_MAX_LLM_RETRIES + 1):
                 try:
-                    token: str = chunk.text  # raises ValueError if blocked
-                    if token:
-                        full_response_parts.append(token)
-                        yield token
-                except (ValueError, AttributeError):
-                    # Chunk was filtered by safety settings — skip silently.
-                    # The stream continues; only this chunk is dropped.
-                    continue
+                    # generate_content_stream is a coroutine that must be
+                    # awaited first; the result is the async iterable of chunks.
+                    stream = await client.aio.models.generate_content_stream(
+                        model=_MODEL_NAME,
+                        contents=contents,
+                        config=gen_config,
+                    )
+                    async for chunk in stream:
+                        try:
+                            token: str = chunk.text  # raises ValueError if blocked
+                            if token:
+                                full_response_parts.append(token)
+                                yield token
+                        except (ValueError, AttributeError):
+                            # Chunk filtered by safety settings — skip silently.
+                            continue
+                    break  # stream completed successfully — exit retry loop
+
+                except Exception as _inner_exc:
+                    _exc_str = str(_inner_exc)
+                    _is_rate_limit = (
+                        "429" in _exc_str
+                        or "RESOURCE_EXHAUSTED" in _exc_str
+                        or "quota" in _exc_str.lower()
+                    )
+                    # Only retry on rate-limit errors AND only if no tokens
+                    # have been emitted yet (retrying mid-stream would produce
+                    # duplicate output visible to the user).
+                    if _is_rate_limit and _attempt < _MAX_LLM_RETRIES and not full_response_parts:
+                        import re as _re
+                        _delay_match = _re.search(r"retry in (\d+(?:\.\d+)?)", _exc_str)
+                        _delay = float(_delay_match.group(1)) + 2 if _delay_match else 32
+                        logger.warning(
+                            "stream_response: rate limited (429), retrying in "
+                            "%.0fs (attempt %d/%d). ticker=%s",
+                            _delay, _attempt + 1, _MAX_LLM_RETRIES,
+                            dashboard_state.ticker,
+                        )
+                        await asyncio.sleep(_delay)
+                        # Loop continues to next attempt
+                    else:
+                        raise  # unrecoverable — let outer except handle it
 
         except Exception as exc:
             # Unrecoverable API error — emit a structured error token so the
