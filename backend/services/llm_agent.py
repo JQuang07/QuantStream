@@ -3,7 +3,7 @@ QuantStream Dashboard — LLM Strategy Agent
 ==========================================
 backend/services/llm_agent.py
 
-Integrates Google Gemini 1.5 Flash via the ``google-genai`` SDK (v2+) to
+Integrates Google Gemini 2.0 Flash via the ``google-genai`` SDK (v2+) to
 provide a streaming AI quantitative strategy assistant grounded in the live
 dashboard state.
 
@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-_MODEL_NAME: str          = "gemini-1.5-flash"
+_MODEL_NAME: str          = "gemini-2.0-flash"
 _EMBEDDING_MODEL: str     = "text-embedding-004"
 _DEFAULT_TEMPERATURE: float = 0.65
 _DEFAULT_MAX_TOKENS: int   = 2048
