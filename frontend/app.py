@@ -104,6 +104,48 @@ _ETF_PRESETS = {
 }
 _PERIOD_OPTIONS = ["1mo", "3mo", "6mo", "1y", "2y", "5y"]
 
+# Hover tooltips shown on preset buttons via st.button(help=...)
+_TICKER_INFO: dict[str, str] = {
+    # ── Single equities ──────────────────────────────────────────────────
+    "AAPL"  : "Apple Inc. — iPhone, Mac, and services ecosystem",
+    "MSFT"  : "Microsoft Corp. — Cloud (Azure), enterprise software, and AI",
+    "NVDA"  : "NVIDIA Corp. — GPUs powering AI training and data centres",
+    "GOOGL" : "Alphabet Inc. — Google Search, Cloud, and YouTube",
+    "AMZN"  : "Amazon.com Inc. — E-commerce and AWS cloud leader",
+    "TSLA"  : "Tesla Inc. — Electric vehicles and energy storage",
+    "META"  : "Meta Platforms — Facebook, Instagram, and WhatsApp",
+    # ── Broad market ETFs ────────────────────────────────────────────────
+    "SPY"   : "SPDR S&P 500 ETF — Tracks the 500 largest US companies",
+    "QQQ"   : "Invesco QQQ ETF — Nasdaq-100 index, heavily weighted to tech",
+    "IWM"   : "iShares Russell 2000 ETF — US small-cap stocks",
+    "DIA"   : "SPDR Dow Jones ETF — Tracks the 30 Dow Jones Industrial stocks",
+    "VTI"   : "Vanguard Total Stock Market ETF — Entire US equity market",
+    # ── Sector ETFs ──────────────────────────────────────────────────────
+    "XLK"   : "Technology Select Sector SPDR — Large-cap US tech stocks",
+    "XLF"   : "Financial Select Sector SPDR — US banks and financials",
+    "XLE"   : "Energy Select Sector SPDR — US oil and gas companies",
+    "XLV"   : "Health Care Select Sector SPDR — US healthcare and biotech",
+    "XLI"   : "Industrial Select Sector SPDR — US industrials and aerospace",
+    # ── Fixed income ETFs ────────────────────────────────────────────────
+    "TLT"   : "iShares 20+ Year Treasury Bond ETF — Long-duration US Treasuries",
+    "HYG"   : "iShares High Yield Corporate Bond ETF — Sub-investment-grade (junk) bonds",
+    "LQD"   : "iShares Investment Grade Corporate Bond ETF — High-quality corporate debt",
+    "SHY"   : "iShares 1-3 Year Treasury Bond ETF — Short-duration, low-risk Treasuries",
+    "BND"   : "Vanguard Total Bond Market ETF — Broad US investment-grade bond market",
+    # ── Commodities ETFs ────────────────────────────────────────────────
+    "GLD"   : "SPDR Gold Shares ETF — Physical gold tracker",
+    "SLV"   : "iShares Silver Trust ETF — Physical silver tracker",
+    "USO"   : "United States Oil Fund — Front-month WTI crude oil futures",
+    "UNG"   : "United States Natural Gas Fund — Henry Hub natural gas futures",
+    "PDBC"  : "Invesco Optimum Yield Diversified Commodity ETF — Broad commodities basket",
+    # ── International ETFs ───────────────────────────────────────────────
+    "EFA"   : "iShares MSCI EAFE ETF — Developed markets ex-US (Europe, Asia, Australasia)",
+    "EEM"   : "iShares MSCI Emerging Markets ETF — Large/mid-cap EM stocks",
+    "VWO"   : "Vanguard FTSE Emerging Markets ETF — Broader EM coverage than EEM",
+    "FXI"   : "iShares China Large-Cap ETF — Top 50 Chinese companies",
+    "INDA"  : "iShares MSCI India ETF — Indian large and mid-cap stocks",
+}
+
 # ---------------------------------------------------------------------------
 # Custom CSS
 # ---------------------------------------------------------------------------
@@ -610,7 +652,12 @@ def render_analytics_section(
     if preset_tickers:
         cols = st.columns(len(preset_tickers))
         for i, sym in enumerate(preset_tickers):
-            if cols[i].button(sym, key=f"qp_{source_label}_{sym}", use_container_width=True):
+            if cols[i].button(
+                sym,
+                key=f"qp_{source_label}_{sym}",
+                use_container_width=True,
+                help=_TICKER_INFO.get(sym),
+            ):
                 st.session_state[ticker_key] = sym
                 # Also update the text input's own widget key so the box
                 # reflects the new symbol immediately on the next rerun.
@@ -622,8 +669,12 @@ def render_analytics_section(
             with st.expander(f"📂 {category}", expanded=False):
                 gc = st.columns(len(syms))
                 for i, sym in enumerate(syms):
-                    if gc[i].button(sym, key=f"qpg_{source_label}_{category}_{sym}",
-                                    use_container_width=True):
+                    if gc[i].button(
+                        sym,
+                        key=f"qpg_{source_label}_{category}_{sym}",
+                        use_container_width=True,
+                        help=_TICKER_INFO.get(sym),
+                    ):
                         st.session_state[ticker_key] = sym
                         st.session_state[f"ticker_input_{source_label}"] = sym
                         st.session_state[f"run_query_{source_label}"] = True
