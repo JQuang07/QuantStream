@@ -1034,111 +1034,33 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # ── Conversation history ─────────────────────────────────────────────────
-    # Render the committed history (all turns except the one currently streaming).
-    # New turns are appended and rendered live via st.write_stream below.
-    for msg in st.session_state["chat_history"]:
-        avatar = "🧑‍💻" if msg["role"] == "user" else "🤖"
-        with st.chat_message(msg["role"], avatar=avatar):
-            st.markdown(msg["content"])
+    # ── Message area + input ─────────────────────────────────────────────────
+    # KEY LAYOUT PATTERN:
+    #   1. Create `msg_area` container first  (visually above the input)
+    #   2. Call st.chat_input next            (Streamlit pins it to the bottom)
+    #   3. Fill `msg_area` with everything    (history + current turn + tips)
+    #
+    # Because Streamlit renders containers in CREATION order, msg_area always
+    # sits above the input box regardless of when it is filled — including
+    # during streaming.  Calling chat_input last but filling the container
+    # afterwards is what keeps new messages above the input.
 
-    # ── Input and streaming ──────────────────────────────────────────────────
+    msg_area = st.container()
+
+    # ── Input (pinned to sidebar bottom by Streamlit) ────────────────────────
     prompt = st.chat_input(
         "Ask about the chart, regime, or strategy…",
         key="sidebar_chat_input",
+        max_chars=500,
     )
 
-    if prompt:
-        # ── Display user message immediately ──────────────────────────────
-        with st.chat_message("user", avatar="🧑‍💻"):
-            st.markdown(prompt)
+    # ── Fill the message area ────────────────────────────────────────────────
+    with msg_area:
 
-        # ── Build dashboard state payload ──────────────────────────────────
-        if _ctx_data:
-            dash_state = build_dashboard_state(_ctx_data, _ctx_ticker)
-        else:
-            # Graceful fallback when no analytics are loaded yet
-            dash_state = {
-                "ticker"          : "N/A",
-                "current_regime"  : "Unknown",
-                "regime_state_id" : 0,
-                "rolling_vol_21d" : 0.15,
-                "gk_vol_21d"      : 0.15,
-                "rsi_14"          : 50.0,
-                "macd_histogram"  : 0.0,
-                "cvar_95"         : -0.02,
-                "last_close"      : 0.0,
-                "data_as_of"      : "",
-                "sma_zscore_200d" : None,
-            }
-
-        # ── Stream assistant response ──────────────────────────────────────
-        with st.chat_message("assistant", avatar="🤖"):
-            full_response: Optional[str] = None
-            try:
-                token_gen = api_client.stream_chat(
-                    message        = prompt,
-                    dashboard_state= dash_state,
-                    session_id     = st.session_state["session_id"],
-                    history        = [
-                        {"role": m["role"], "content": m["content"]}
-                        for m in st.session_state["chat_history"]
-                    ],
-                )
-                # st.write_stream renders tokens progressively and returns
-                # the complete concatenated string when exhausted.
-                full_response = st.write_stream(token_gen)
-
-            except StreamError as exc:
-                err_str = str(exc)
-                # 429 / quota errors come through as StreamError because the
-                # Gemini call fails after the SSE connection is already open.
-                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "quota" in err_str.lower():
-                    # Extract the retry delay from the error message if present
-                    import re as _re
-                    delay_match = _re.search(r"retry in (\d+)", err_str)
-                    delay_hint  = f" ({delay_match.group(1)}s)" if delay_match else ""
-                    st.warning(
-                        f"⏳ **Gemini rate limit reached{delay_hint}.**\n\n"
-                        "The free tier allows **15 requests per minute**. "
-                        "Wait about 30 seconds and ask again.\n\n"
-                        "If this happens repeatedly, check your quota at "
-                        "[ai.dev/rate-limit](https://ai.dev/rate-limit)."
-                    )
-                else:
-                    st.error(f"⚠️ **AI Error:** {exc}")
-
-            except BackendError as exc:
-                if exc.status_code == 503:
-                    st.warning(
-                        "⚡ **Backend offline.** "
-                        "The Render free-tier service may be asleep. "
-                        "Try again in ~30 seconds."
-                    )
-                elif exc.status_code == 504:
-                    st.warning(
-                        "⏱️ **Request timed out.** "
-                        "The backend may still be waking up — please retry."
-                    )
-                else:
-                    st.error(f"⚠️ **Backend error {exc.status_code}:** {exc.detail}")
-
-            except Exception as exc:
-                st.error(f"⚠️ **Unexpected error:** {exc}")
-
-        # ── Persist to history ─────────────────────────────────────────────
-        st.session_state["chat_history"].append(
-            {"role": "user", "content": prompt}
-        )
-        if full_response:
-            st.session_state["chat_history"].append(
-                {"role": "assistant", "content": full_response}
-            )
-
-    # ── Usage tips (shown when chat is empty) ────────────────────────────────
-    if not st.session_state["chat_history"]:
-        st.markdown(
-            """
+        # Usage tips — only when no history and no active prompt
+        if not st.session_state["chat_history"] and not prompt:
+            st.markdown(
+                """
 <div style='font-size:0.78rem;opacity:0.42;padding:10px 4px;'>
 <strong>💡 Try asking:</strong><br>
 • "What does the current regime mean for momentum strategies?"<br>
@@ -1148,5 +1070,93 @@ with st.sidebar:
 • "Is this an overbought situation or sustained trend?"
 </div>
 """,
-            unsafe_allow_html=True,
-        )
+                unsafe_allow_html=True,
+            )
+
+        # Committed conversation history
+        for msg in st.session_state["chat_history"]:
+            avatar = "🧑‍💻" if msg["role"] == "user" else "🤖"
+            with st.chat_message(msg["role"], avatar=avatar):
+                st.markdown(msg["content"])
+
+        # Current turn — rendered inside msg_area so it stays above the input
+        if prompt:
+            # ── Display user message immediately ──────────────────────────
+            with st.chat_message("user", avatar="🧑‍💻"):
+                st.markdown(prompt)
+
+            # ── Build dashboard state payload ──────────────────────────────
+            if _ctx_data:
+                dash_state = build_dashboard_state(_ctx_data, _ctx_ticker)
+            else:
+                dash_state = {
+                    "ticker"          : "N/A",
+                    "current_regime"  : "Unknown",
+                    "regime_state_id" : 0,
+                    "rolling_vol_21d" : 0.15,
+                    "gk_vol_21d"      : 0.15,
+                    "rsi_14"          : 50.0,
+                    "macd_histogram"  : 0.0,
+                    "cvar_95"         : -0.02,
+                    "last_close"      : 0.0,
+                    "data_as_of"      : "",
+                    "sma_zscore_200d" : None,
+                }
+
+            # ── Stream assistant response ──────────────────────────────────
+            with st.chat_message("assistant", avatar="🤖"):
+                full_response: Optional[str] = None
+                try:
+                    token_gen = api_client.stream_chat(
+                        message        = prompt,
+                        dashboard_state= dash_state,
+                        session_id     = st.session_state["session_id"],
+                        history        = [
+                            {"role": m["role"], "content": m["content"]}
+                            for m in st.session_state["chat_history"]
+                        ],
+                    )
+                    full_response = st.write_stream(token_gen)
+
+                except StreamError as exc:
+                    err_str = str(exc)
+                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "quota" in err_str.lower():
+                        import re as _re
+                        delay_match = _re.search(r"retry in (\d+)", err_str)
+                        delay_hint  = f" ({delay_match.group(1)}s)" if delay_match else ""
+                        st.warning(
+                            f"⏳ **Gemini rate limit reached{delay_hint}.**\n\n"
+                            "The free tier allows **15 requests per minute**. "
+                            "Wait about 30 seconds and ask again.\n\n"
+                            "If this happens repeatedly, check your quota at "
+                            "[ai.dev/rate-limit](https://ai.dev/rate-limit)."
+                        )
+                    else:
+                        st.error(f"⚠️ **AI Error:** {exc}")
+
+                except BackendError as exc:
+                    if exc.status_code == 503:
+                        st.warning(
+                            "⚡ **Backend offline.** "
+                            "The Render free-tier service may be asleep. "
+                            "Try again in ~30 seconds."
+                        )
+                    elif exc.status_code == 504:
+                        st.warning(
+                            "⏱️ **Request timed out.** "
+                            "The backend may still be waking up — please retry."
+                        )
+                    else:
+                        st.error(f"⚠️ **Backend error {exc.status_code}:** {exc.detail}")
+
+                except Exception as exc:
+                    st.error(f"⚠️ **Unexpected error:** {exc}")
+
+            # ── Persist to history ─────────────────────────────────────────
+            st.session_state["chat_history"].append(
+                {"role": "user", "content": prompt}
+            )
+            if full_response:
+                st.session_state["chat_history"].append(
+                    {"role": "assistant", "content": full_response}
+                )
