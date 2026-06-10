@@ -489,15 +489,3 @@ https://xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.us-east4-0.gcp.cloud.qdrant.io
 ```
 
 Also confirm the `QDRANT_API_KEY` matches the key shown in the Qdrant Cloud dashboard under the **API Keys** tab for your cluster.
-
----
-
-## Contributing
-
-Contributions are welcome. Please open an issue first to discuss the change before submitting a pull request.
-
-Before submitting:
-
-1. Ensure all new backend code keeps heavy imports **inside** the function bodies — never at module scope — to respect the 512 MB RAM constraint.
-2. All new API endpoints should include Pydantic input/output models with full type hints.
-3. Frontend changes must not import any heavy analytics libraries into `app.py` or `api_client.py` — the Streamlit process should stay lightweight.
