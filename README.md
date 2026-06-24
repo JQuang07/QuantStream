@@ -1,6 +1,7 @@
 # QuantStream Dashboard
 
 A full-stack AI-powered quantitative finance dashboard that combines live US equities analytics, Hidden Markov Model market regime detection, and a Gemini-grounded strategy chatbot — all deployable for free.
+Try deployed version: https://quantstream-av6abuxascz4vejbqjfovb.streamlit.app/
 
 ---
 
